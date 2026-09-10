@@ -244,10 +244,15 @@ export async function chat(
   messages: ChatMessage[],
   opts: { model?: string; temperature?: number } = {},
 ): Promise<string> {
+  const isJson = messages.some(
+    (m) =>
+      typeof m.content === "string" && (m.content.includes("JSON") || m.content.includes("json")),
+  );
+
   const key = getApiKey();
   if (!key) {
     // Return high-quality deterministic fallback
-    return generateDeterministicFallback(messages, false);
+    return generateDeterministicFallback(messages, isJson);
   }
 
   try {
@@ -265,15 +270,15 @@ export async function chat(
     });
     if (!res.ok) {
       console.warn(`[AI Gateway fallback] ${res.status}: using deterministic heuristic fallback`);
-      return generateDeterministicFallback(messages, false);
+      return generateDeterministicFallback(messages, isJson);
     }
     const json = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
-    return json.choices?.[0]?.message?.content ?? generateDeterministicFallback(messages, false);
+    return json.choices?.[0]?.message?.content ?? generateDeterministicFallback(messages, isJson);
   } catch (err) {
     console.warn("[AI Gateway error] using deterministic heuristic fallback", err);
-    return generateDeterministicFallback(messages, false);
+    return generateDeterministicFallback(messages, isJson);
   }
 }
 

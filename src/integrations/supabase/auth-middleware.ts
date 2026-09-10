@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { ensureValidUuid } from "@/lib/auth-service";
-import { createSupabaseServerClient } from "./client.server";
+import { createLocalSupabaseClient } from "@/lib/db.server";
 import { parseJwt, createOperatorJwt } from "@/lib/jwt-utils";
 
 export const requireSupabaseAuth = createMiddleware({ type: "function" }).server(
@@ -10,20 +11,6 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
     const authHeader = request?.headers?.get("authorization");
 
     let token = authHeader?.replace("Bearer ", "").trim();
-
-    if (!token) {
-      const cookieHeader = request?.headers?.get("cookie");
-      if (cookieHeader) {
-        const match = cookieHeader.match(/operator_token=([^;]+)/);
-        if (match?.[1]) {
-          try {
-            token = decodeURIComponent(match[1].trim());
-          } catch {
-            token = match[1].trim();
-          }
-        }
-      }
-    }
 
     if (!token) {
       token = createOperatorJwt("10000000-0000-4000-8000-000000000001", "operator@intelliforge.ai");
@@ -47,18 +34,16 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
         };
       }
     } else if (token.startsWith("operator-token-") || token.startsWith("operator-")) {
-      // Legacy operator string: convert to valid UUID and genuine 3-part JWT
+      // Legacy operator string
       const rawId = token.replace("operator-token-", "").replace("operator-", "");
       validUserId = ensureValidUuid(rawId);
-      token = createOperatorJwt(validUserId, "operator@intelliforge.ai");
       claims = { sub: validUserId, role: "operator" };
     } else {
       validUserId = ensureValidUuid(token);
-      token = createOperatorJwt(validUserId, "operator@intelliforge.ai");
       claims = { sub: validUserId, role: "operator" };
     }
 
-    const supabase = createSupabaseServerClient(validUserId, token);
+    const supabase = createLocalSupabaseClient(validUserId);
 
     return next({
       context: {

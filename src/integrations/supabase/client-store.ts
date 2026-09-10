@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getStoredOperatorSession } from "@/lib/auth-service";
 import { createOperatorJwt } from "@/lib/jwt-utils";
 
@@ -139,6 +140,18 @@ export function createClientQueryBuilder(table: string) {
         }
 
         const json = await res.json();
+
+        if (
+          typeof window !== "undefined" &&
+          (action === "insert" || action === "update" || action === "delete")
+        ) {
+          window.dispatchEvent(
+            new CustomEvent("supabase_db_changes", {
+              detail: { table, event: action.toUpperCase(), action, data: payloadData },
+            }),
+          );
+        }
+
         return json;
       } catch (err: any) {
         return { data: null, error: { message: err?.message || "Network error" } };

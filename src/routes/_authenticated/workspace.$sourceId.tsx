@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ChevronRight,
@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TrustBadge } from "@/components/trust";
+import { WorkflowStepper } from "@/components/workflow-stepper";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { supabase } from "@/integrations/supabase/client";
 import { setFactLock } from "@/lib/pipeline.functions";
@@ -88,6 +89,38 @@ function Workspace() {
   const [parsing, setParsing] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [live, setLive] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cf_requirements");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.audience && parsed.contentType) {
+          setRequirements([
+            {
+              audience: parsed.audience,
+              outputType: parsed.contentType,
+              tone: parsed.tone || "Neutral",
+              detail: parsed.length || "Medium",
+              objective: `Deliver verified ${parsed.contentType} tailored for ${parsed.audience}. Include evidence locators and protect locked facts.`,
+            },
+            {
+              audience: "Executive Leadership",
+              outputType: "Executive Brief",
+              tone: "Formal & High-Level",
+              detail: "Brief",
+              objective: "Threat overview, organizational impact, and strategic directives.",
+            },
+          ]);
+        }
+        if (parsed.language) {
+          setTargetLanguage(parsed.language);
+        }
+      }
+    } catch (e) {
+      console.debug("Could not parse saved requirements", e);
+    }
+  }, []);
 
   const { data } = useLiveQuery(
     ["workspace", sourceId] as never,
@@ -230,15 +263,30 @@ function Workspace() {
 
   return (
     <div>
+      <WorkflowStepper
+        currentStep="generate"
+        sourceId={sourceId}
+        outputId={(data?.outputs ?? [])[0]?.id}
+      />
       <PageHeader
-        eyebrow="Stages 3–5 · Fact lock, intent, multi-audience generation"
+        eyebrow="Step 3 of 6 · Fact lock & multi-audience generation"
         title={data?.source?.title ?? "Transformation workspace"}
         description="Lock critical values so they never drift. State audience intent, then generate verified drafts with live claim tracing."
         actions={
           <div className="flex items-center gap-2">
+            {(data?.outputs ?? []).length > 0 && (
+              <Link
+                to="/outputs/$outputId"
+                params={{ outputId: (data?.outputs ?? [])[0].id }}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-500 ring-2 ring-emerald-400/30 transition-all"
+              >
+                Next Step: Verify Claims (Step 4)
+                <ArrowRight className="size-3.5" />
+              </Link>
+            )}
             <Link
               to="/outputs"
-              className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-3 py-1.5 text-xs text-foreground border border-border hover:bg-surface-raised"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-xs text-foreground border border-border hover:bg-surface-raised"
             >
               All generated outputs
             </Link>
@@ -391,12 +439,12 @@ function Workspace() {
                   size="sm"
                   onClick={generate}
                   disabled={streaming || requirements.length === 0}
-                  className="bg-ember text-ember-foreground hover:bg-ember/90 text-xs font-semibold"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 ring-2 ring-emerald-400/30 text-xs font-bold px-4 py-2 rounded-lg transition-all"
                 >
                   <Zap className={cn("size-3 mr-1.5", streaming && "animate-spin")} />
                   {streaming
-                    ? "Streaming..."
-                    : `Generate ${requirements.length} Verified Artefact(s)`}
+                    ? "Generating & Fact-Checking..."
+                    : `Generate ${requirements.length} Verified Artefact(s) (Step 3) →`}
                 </Button>
               </div>
             </div>
@@ -461,6 +509,31 @@ function Workspace() {
             </div>
           )}
 
+          {/* Next Step Callout Banner */}
+          {(data?.outputs ?? []).length > 0 && (
+            <div className="rounded-2xl border-2 border-emerald-500/50 bg-emerald-50/95 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md shadow-emerald-500/10 animate-in fade-in">
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <CheckCircle2 className="size-5 text-emerald-600" />
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Step 3 Complete: Content Generated & Grounded!
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600">
+                  {(data?.outputs ?? []).length} artefact(s) ready. Click the green button to
+                  inspect sentence citations, resolve any flags, and verify claims.
+                </p>
+              </div>
+              <Link
+                to="/outputs/$outputId"
+                params={{ outputId: (data?.outputs ?? [])[0].id }}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 ring-2 ring-emerald-400/40 transition-all hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+              >
+                Next Step: Verify Claims (Step 4) <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          )}
+
           {/* Output History List */}
           <div className="rounded-sm border border-border bg-surface">
             <div className="border-b border-border px-5 py-3 flex items-center justify-between">
@@ -490,7 +563,10 @@ function Workspace() {
                           : "—"}
                       </span>
                       <TrustBadge state={output.verification_status} />
-                      <ChevronRight className="size-4 text-muted-foreground" />
+                      <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-md transition-colors">
+                        Step 4: Verify Claims <ChevronRight className="size-3.5" />
+                      </span>
+                      <ChevronRight className="size-4 text-muted-foreground sm:hidden" />
                     </div>
                   </Link>
                 </li>

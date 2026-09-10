@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
@@ -179,8 +180,7 @@ export function getDb(): DatabaseSync {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       output_id TEXT NOT NULL,
-      action TEXT NOT NULL DEFAULT 'approve',
-      decision TEXT DEFAULT 'approve',
+      decision TEXT NOT NULL,
       notes TEXT,
       diff_json TEXT,
       created_at TEXT DEFAULT (datetime('now'))
@@ -221,7 +221,6 @@ export function getDb(): DatabaseSync {
 
   // Run safe schema migrations for existing tables
   const safeAlterCols = [
-    "ALTER TABLE reviews ADD COLUMN action TEXT DEFAULT 'approve'",
     "ALTER TABLE outputs ADD COLUMN model TEXT",
     "ALTER TABLE outputs ADD COLUMN updated_at TEXT",
     "ALTER TABLE generation_requests ADD COLUMN output_types TEXT",
@@ -340,6 +339,16 @@ export function uuid(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+export function sanitizeSqliteValue(val: unknown): string | number | bigint | Uint8Array | null {
+  if (val === undefined || val === null) return null;
+  if (typeof val === "boolean") return val ? 1 : 0;
+  if (typeof val === "number" || typeof val === "string" || typeof val === "bigint") return val;
+  if (val instanceof Uint8Array) return val;
+  if (val instanceof Date) return val.toISOString();
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
 }
 
 /**
@@ -487,16 +496,10 @@ function createQueryBuilder(db: DatabaseSync, table: string, defaultUserId: stri
             if (!row.user_id && table !== "demo_scenarios") {
               row.user_id = defaultUserId;
             }
-            if (table === "reviews") {
-              if (row.action && !row.decision) row.decision = row.action;
-              if (row.decision && !row.action) row.action = row.decision;
-            }
 
-            // Serialize booleans, objects or arrays for SQLite
+            // Serialize objects or arrays to JSON strings
             for (const key of Object.keys(row)) {
-              if (typeof row[key] === "boolean") {
-                row[key] = row[key] ? 1 : 0;
-              } else if (
+              if (
                 row[key] !== null &&
                 typeof row[key] === "object" &&
                 !(row[key] instanceof Date)
@@ -508,7 +511,7 @@ function createQueryBuilder(db: DatabaseSync, table: string, defaultUserId: stri
             const cols = Object.keys(row);
             const placeholders = cols.map(() => "?").join(", ");
             const sql = `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`;
-            const values = cols.map((c) => row[c]);
+            const values = cols.map((c) => sanitizeSqliteValue(row[c]));
 
             db.prepare(sql).run(...values);
             insertedRows.push(row);
@@ -525,28 +528,18 @@ function createQueryBuilder(db: DatabaseSync, table: string, defaultUserId: stri
 
           const safeUpdate = { ...updateData };
           for (const key of Object.keys(safeUpdate)) {
-            if (typeof safeUpdate[key] === "boolean") {
-              safeUpdate[key] = safeUpdate[key] ? 1 : 0;
-            } else if (
-              safeUpdate[key] !== null &&
-              typeof safeUpdate[key] === "object" &&
-              !(safeUpdate[key] instanceof Date)
-            ) {
-              safeUpdate[key] = JSON.stringify(safeUpdate[key]);
-            }
             sets.push(`${key} = ?`);
-            values.push(safeUpdate[key]);
+            values.push(sanitizeSqliteValue(safeUpdate[key]));
           }
 
           const whereClauses: string[] = [];
           for (const f of filters) {
-            const paramVal = typeof f.val === "boolean" ? (f.val ? 1 : 0) : f.val;
             if (f.type === "eq") {
               whereClauses.push(`${f.col} = ?`);
-              values.push(paramVal);
+              values.push(sanitizeSqliteValue(f.val));
             } else if (f.type === "neq") {
               whereClauses.push(`${f.col} != ?`);
-              values.push(paramVal);
+              values.push(sanitizeSqliteValue(f.val));
             }
           }
 
@@ -564,10 +557,10 @@ function createQueryBuilder(db: DatabaseSync, table: string, defaultUserId: stri
           for (const f of filters) {
             if (f.type === "eq") {
               whereClauses.push(`${f.col} = ?`);
-              values.push(f.val);
+              values.push(sanitizeSqliteValue(f.val));
             } else if (f.type === "neq") {
               whereClauses.push(`${f.col} != ?`);
-              values.push(f.val);
+              values.push(sanitizeSqliteValue(f.val));
             }
           }
 
@@ -584,17 +577,17 @@ function createQueryBuilder(db: DatabaseSync, table: string, defaultUserId: stri
         for (const f of filters) {
           if (f.type === "eq") {
             whereClauses.push(`${f.col} = ?`);
-            values.push(f.val);
+            values.push(sanitizeSqliteValue(f.val));
           } else if (f.type === "neq") {
             whereClauses.push(`${f.col} != ?`);
-            values.push(f.val);
+            values.push(sanitizeSqliteValue(f.val));
           } else if (f.type === "in") {
             if (f.vals.length === 0) {
               whereClauses.push("1 = 0");
             } else {
               const q = f.vals.map(() => "?").join(", ");
               whereClauses.push(`${f.col} IN (${q})`);
-              values.push(...f.vals);
+              values.push(...f.vals.map(sanitizeSqliteValue));
             }
           }
         }

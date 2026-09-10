@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   ChevronRight,
   Eye,
@@ -20,6 +21,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TrustBadge } from "@/components/trust";
+import { WorkflowStepper } from "@/components/workflow-stepper";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { supabase } from "@/integrations/supabase/client";
 import { decideOutput } from "@/lib/review.functions";
@@ -119,11 +121,59 @@ function ReviewPage() {
 
   return (
     <div>
+      <WorkflowStepper
+        currentStep="review"
+        outputId={selectedOutputId || allOutputs[0]?.id}
+        sourceId={allOutputs[0]?.source_id}
+      />
       <PageHeader
-        eyebrow="Stage 7 · Human Gate"
+        eyebrow="Step 5 of 6 · Human Review & Verification Gate"
         title="Human review & approval queue"
         description="Nothing leaves INTELLI-FORGE without human sign-off. Critical fact conflicts strictly block approval."
+        actions={
+          <div className="flex items-center gap-2">
+            {allOutputs.some((o) => o.status === "approved") && (
+              <Link
+                to="/distribution"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-500 ring-2 ring-emerald-400/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
+              >
+                Next Step: Distribution (Step 6)
+                <ArrowRight className="size-3.5" />
+              </Link>
+            )}
+            <Link
+              to="/outputs"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-medium text-slate-700 border border-slate-200 hover:bg-slate-50"
+            >
+              All outputs & downloads
+            </Link>
+          </div>
+        }
       />
+
+      {/* Step 5 Guidance Callout Banner */}
+      <div className="mx-6 mt-6 rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/90 p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in">
+        <div className="space-y-1 text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start gap-2">
+            <CheckCircle2 className="size-5 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900">
+              Step 5: Operator Review & Authoritative Gate
+            </h3>
+          </div>
+          <p className="text-xs text-slate-600 max-w-2xl">
+            Select an artefact below, inspect the fact checks, and sign off. Once approved, the
+            green Next Step button will take you directly to Multi-Channel Distribution (Step 6).
+          </p>
+        </div>
+        {allOutputs.some((o) => o.status === "approved") && (
+          <Link
+            to="/distribution"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 ring-2 ring-emerald-400/40 transition-all hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+          >
+            Next Step: Distribution (Step 6) <ArrowRight className="size-4" />
+          </Link>
+        )}
+      </div>
 
       {/* Filter Tabs */}
       <div className="flex border-b border-border bg-surface px-6 overflow-x-auto">
@@ -355,13 +405,35 @@ function ReviewPage() {
                   className="text-xs border-border bg-background focus-visible:ring-ember"
                 />
 
+                {/* Already Approved Callout & Next Step 6 Action */}
+                {selectedItem.status === "approved" && (
+                  <div className="rounded-xl border-2 border-emerald-500/50 bg-emerald-50/90 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm animate-in fade-in">
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <CheckCircle2 className="size-4 text-emerald-600" />
+                        Artefact Approved & Signed Off!
+                      </p>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        This document has passed the human gate. Proceed to Step 6 to prepare
+                        multi-channel payloads.
+                      </p>
+                    </div>
+                    <Link
+                      to="/distribution"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 ring-2 ring-emerald-400/40 transition-all hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                    >
+                      Next Step: Distribution (Step 6) <ArrowRight className="size-3.5" />
+                    </Link>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={isProcessing}
                     onClick={() => handleDecision(selectedItem.id, "reject")}
-                    className="text-conflict hover:bg-conflict/10 border-conflict/40 text-xs"
+                    className="text-rose-600 hover:bg-rose-50 border-rose-200 text-xs"
                   >
                     <XCircle className="size-3.5 mr-1" />
                     Reject Artefact
@@ -372,16 +444,16 @@ function ReviewPage() {
                     disabled={isProcessing || selectedItem.openConflicts.length > 0}
                     onClick={() => handleDecision(selectedItem.id, "approve")}
                     className={cn(
-                      "text-xs font-semibold",
+                      "text-xs font-bold transition-all",
                       selectedItem.openConflicts.length > 0
-                        ? "bg-muted text-muted-foreground cursor-not-allowed"
-                        : "bg-verified text-verified-foreground hover:bg-verified/90",
+                        ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 ring-2 ring-emerald-400/30",
                     )}
                   >
                     <CheckCircle2 className="size-3.5 mr-1" />
                     {selectedItem.openConflicts.length > 0
                       ? "Approval Blocked (Resolve Conflicts)"
-                      : "Approve for Distribution"}
+                      : "Approve for Distribution →"}
                   </Button>
                 </div>
               </div>

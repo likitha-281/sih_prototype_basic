@@ -24,16 +24,29 @@ export function useLiveQuery<T>(
 
   useEffect(() => {
     if (!enabled) return;
-    const channel = supabase.channel(`live:${JSON.stringify(normalizedKey)}`);
-    tables.forEach((table) => {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        queryClient.invalidateQueries({ queryKey: normalizedKey });
-      });
-    });
-    channel.subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    if (!supabase || typeof supabase.channel !== "function") return;
+
+    try {
+      const channel = supabase.channel(`live:${JSON.stringify(normalizedKey)}`);
+      if (channel && typeof channel.on === "function") {
+        tables.forEach((table) => {
+          channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+            queryClient.invalidateQueries({ queryKey: normalizedKey });
+          });
+        });
+        if (typeof channel.subscribe === "function") {
+          channel.subscribe();
+        }
+      }
+      return () => {
+        if (typeof supabase.removeChannel === "function" && channel) {
+          supabase.removeChannel(channel);
+        }
+      };
+    } catch {
+      // Fallback cleanly without crashing
+      return undefined;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(normalizedKey), tables.join(","), enabled]);
 

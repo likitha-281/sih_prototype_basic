@@ -2,7 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ArrowRight,
   Check,
+  CheckCircle2,
   Copy,
   Download,
   ExternalLink,
@@ -21,6 +23,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { WorkflowStepper } from "@/components/workflow-stepper";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { supabase } from "@/integrations/supabase/client";
 import { prepareDistribution } from "@/lib/review.functions";
@@ -196,27 +199,91 @@ function DistributionPage() {
     toast.success("Package downloaded.");
   };
 
+  const handleDownloadMarkdown = () => {
+    if (!activeOutput) return;
+    const content = `# ${activeOutput.output_type}\n**Target Audience:** ${activeOutput.audience} | **Tone:** ${activeOutput.tone ?? "Standard"}\n**Evidence Coverage:** ${Math.round(activeOutput.evidence_coverage ?? 100)}%\n\n${activeOutput.content}`;
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${activeOutput.output_type.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${activeOutput.audience.toLowerCase().replace(/[^a-z0-9]/g, "-")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Downloaded Markdown document.");
+  };
+
+  const handleDownloadJson = () => {
+    if (!activeOutput) return;
+    const dataObj = {
+      artefact: activeOutput,
+      distribution: {
+        channel,
+        targetEndpoint: targetEndpoint || "broadcast",
+        payload: payloadText,
+        generatedAt: new Date().toISOString(),
+      },
+    };
+    const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `distribution-package-${activeOutput.id.slice(0, 8)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Downloaded JSON bundle.");
+  };
+
   return (
     <div>
+      <WorkflowStepper
+        currentStep="distribute"
+        outputId={activeOutput?.id}
+        sourceId={activeOutput?.source_id}
+      />
       <PageHeader
-        eyebrow="Stage 8 · Distribution Readiness"
+        eyebrow="Step 6 of 6 · Multi-Channel Distribution"
         title="Distribution readiness & multi-channel exporter"
         description="Only human-approved, fact-grounded artefacts can be prepared for distribution across channels."
+        actions={
+          <div className="flex items-center gap-2">
+            <Link
+              to="/upload"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-500 ring-2 ring-emerald-400/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
+            >
+              Start New Run (Step 1)
+              <ArrowRight className="size-3.5" />
+            </Link>
+            <Link
+              to="/outputs"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-medium text-slate-700 border border-slate-200 hover:bg-slate-50"
+            >
+              All outputs & downloads
+            </Link>
+          </div>
+        }
       />
 
       {approvedOutputs.length === 0 && !isLoading && (
-        <div className="m-6 rounded-sm border border-attention/40 bg-attention/10 p-6 text-center">
-          <ShieldCheck className="size-8 text-attention mx-auto" />
-          <h3 className="mt-2 text-sm font-semibold text-attention">
-            No Approved Artefacts Available Yet
+        <div className="m-6 rounded-2xl border-2 border-amber-500/30 bg-amber-50/80 p-8 text-center shadow-sm">
+          <ShieldCheck className="size-10 text-amber-600 mx-auto" />
+          <h3 className="mt-3 text-base font-bold text-amber-950">
+            No Approved Artefacts Available for Distribution Yet
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
-            Artefacts must complete the verification pipeline and receive human approval in the{" "}
-            <Link to="/review" className="text-ember underline underline-offset-4">
-              Review Queue
+          <p className="mt-2 text-xs text-amber-800 max-w-md mx-auto leading-relaxed">
+            Artefacts must complete the 7-point audit check and receive human sign-off in the{" "}
+            <Link to="/review" className="font-bold underline underline-offset-4">
+              Review Queue (Step 5)
             </Link>{" "}
-            before they can be prepared for distribution.
+            before they can be exported to external channels.
           </p>
+          <div className="mt-5">
+            <Link
+              to="/review"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 ring-2 ring-emerald-400/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Go to Step 5: Review & Sign Off Artefacts <ArrowRight className="size-4" />
+            </Link>
+          </div>
         </div>
       )}
 
@@ -342,13 +409,13 @@ function DistributionPage() {
               <Button
                 onClick={handlePrepare}
                 disabled={isPreparing || !activeOutput}
-                className="w-full bg-ember text-ember-foreground font-semibold text-xs hover:bg-ember/90"
+                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2.5 shadow-md shadow-emerald-600/20 ring-2 ring-emerald-400/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
                 <Send className="size-3.5 mr-1.5" />
                 {isPreparing ? "Recording distribution..." : "Prepare & Sign Distribution Bundle"}
               </Button>
               <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
-                Creates an immutable record in the audit chain.
+                Creates an immutable record in the cryptographic audit chain.
               </p>
             </div>
           </div>
@@ -356,48 +423,72 @@ function DistributionPage() {
           {/* Right Column: Live Channel Payload Preview */}
           <div className="lg:col-span-7 p-6 bg-background flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <Terminal className="size-4 text-ember" />
+                  <Terminal className="size-4 text-emerald-600" />
                   <span className="text-sm font-semibold text-foreground">
                     Channel Payload Preview ({channel.toUpperCase()})
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleCopy} className="h-7 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopy}
+                    className="h-7 text-xs border-slate-200"
+                  >
                     {copied ? (
-                      <Check className="size-3 text-verified mr-1" />
+                      <Check className="size-3 text-emerald-600 mr-1" />
                     ) : (
                       <Copy className="size-3 mr-1" />
                     )}
-                    {copied ? "Copied" : "Copy Payload"}
+                    {copied ? "Copied" : "Copy"}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleDownload}
-                    className="h-7 text-xs"
+                    className="h-7 text-xs border-slate-200"
                   >
                     <Download className="size-3 mr-1" />
-                    Download
+                    Payload
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadMarkdown}
+                    className="h-7 text-xs border-slate-200"
+                  >
+                    <Download className="size-3 mr-1" />
+                    .MD
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadJson}
+                    className="h-7 text-xs border-slate-200"
+                  >
+                    <Download className="size-3 mr-1" />
+                    JSON
                   </Button>
                 </div>
               </div>
 
               {/* Formatted Code / Text Box */}
-              <pre className="mt-4 rounded border border-border bg-surface p-4 font-mono text-xs text-foreground/90 overflow-x-auto whitespace-pre-wrap max-h-[460px] leading-relaxed">
+              <pre className="mt-4 rounded-xl border border-border bg-surface p-4 font-mono text-xs text-foreground/90 overflow-x-auto whitespace-pre-wrap max-h-[460px] leading-relaxed shadow-inner">
                 {payloadText}
               </pre>
             </div>
 
             {/* Cryptographic Compliance Badge */}
-            <div className="mt-6 rounded border border-verified/30 bg-verified/5 p-3 flex items-center gap-3">
-              <Key className="size-4 text-verified shrink-0" />
+            <div className="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-50/60 p-4 flex items-center gap-3">
+              <Key className="size-5 text-emerald-600 shrink-0" />
               <div className="text-xs">
-                <p className="font-semibold text-foreground">Cryptographic Verification Attached</p>
-                <p className="text-muted-foreground text-[11px]">
-                  All downstream consumers can verify evidence coverage (
-                  {Math.round(activeOutput?.evidence_coverage ?? 100)}%) against the source hash.
+                <p className="font-bold text-slate-900">Cryptographic Verification Attached</p>
+                <p className="text-slate-600 text-[11px] mt-0.5">
+                  All downstream consumers can mathematically verify evidence coverage (
+                  {Math.round(activeOutput?.evidence_coverage ?? 100)}%) against the source document
+                  hash.
                 </p>
               </div>
             </div>
@@ -406,33 +497,34 @@ function DistributionPage() {
       )}
 
       {/* Distribution History Table */}
-      <section className="m-6 rounded-sm border border-border bg-surface">
+      <section className="m-6 rounded-2xl border border-border bg-surface shadow-xs">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-sm font-semibold flex items-center gap-2">
-            <Radio className="size-4 text-ember" />
+            <Radio className="size-4 text-emerald-600" />
             Prepared Distribution Ledger ({distributions.length})
           </h2>
-          <span className="label-mono">Immutable Log</span>
+          <span className="label-mono">Immutable Audit Chain</span>
         </div>
 
         <div className="divide-y divide-border">
           {distributions.map((dist) => (
             <div
               key={dist.id}
-              className="flex flex-wrap items-center justify-between gap-4 p-4 text-xs"
+              className="flex flex-wrap items-center justify-between gap-4 p-4 text-xs hover:bg-slate-50/80 transition-colors"
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-semibold uppercase text-ember">
+                  <span className="font-mono text-xs font-bold uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
                     {dist.channel}
                   </span>
                   <span className="text-muted-foreground">→</span>
-                  <span className="font-mono text-foreground">
+                  <span className="font-mono text-foreground font-medium">
                     {dist.target || "(broadcast channel)"}
                   </span>
                 </div>
-                <p className="label-mono mt-0.5">
-                  ID: {dist.id.slice(0, 8)}... · Status: {dist.status}
+                <p className="label-mono mt-1 text-slate-500">
+                  ID: {dist.id.slice(0, 8)}... · Status:{" "}
+                  <span className="text-emerald-700 font-semibold">{dist.status}</span>
                 </p>
               </div>
               <span className="font-mono text-[11px] text-muted-foreground">
@@ -445,6 +537,36 @@ function DistributionPage() {
           )}
         </div>
       </section>
+
+      {/* End-to-End Pipeline Completed Banner */}
+      <div className="m-6 mb-12 rounded-2xl border-2 border-emerald-500/50 bg-emerald-50/95 p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-md shadow-emerald-500/10 animate-in fade-in">
+        <div className="space-y-1 text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start gap-2">
+            <CheckCircle2 className="size-5 text-emerald-600" />
+            <h3 className="text-base font-bold text-slate-900">
+              End-to-End Intelligence Pipeline Complete
+            </h3>
+          </div>
+          <p className="text-xs text-slate-600 max-w-xl">
+            Document ingestion, claim extraction, mathematical verification, human audit sign-off,
+            and cryptographic distribution have all been executed with 100% evidence traceability.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/upload"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 ring-2 ring-emerald-400/40 transition-all hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+          >
+            Upload Next Document (Step 1) <ArrowRight className="size-4" />
+          </Link>
+          <Link
+            to="/outputs"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 transition-colors whitespace-nowrap"
+          >
+            View All Outputs & Downloads
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

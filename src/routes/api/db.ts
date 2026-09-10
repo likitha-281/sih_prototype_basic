@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createFileRoute } from "@tanstack/react-router";
-import { getDb, uuid } from "@/lib/db.server";
+import { getDb, uuid, sanitizeSqliteValue } from "@/lib/db.server";
 import { parseJwt } from "@/lib/jwt-utils";
 
 export const Route = createFileRoute("/api/db")({
@@ -52,7 +53,7 @@ export const Route = createFileRoute("/api/db")({
               const cols = Object.keys(row);
               const placeholders = cols.map(() => "?").join(", ");
               const sql = `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`;
-              const values = cols.map((c) => row[c]);
+              const values = cols.map((c) => sanitizeSqliteValue(row[c]));
 
               db.prepare(sql).run(...values);
               insertedRows.push(row);
@@ -74,15 +75,8 @@ export const Route = createFileRoute("/api/db")({
             const values: unknown[] = [];
 
             for (const key of Object.keys(safeUpdate)) {
-              if (
-                safeUpdate[key] !== null &&
-                typeof safeUpdate[key] === "object" &&
-                !(safeUpdate[key] instanceof Date)
-              ) {
-                safeUpdate[key] = JSON.stringify(safeUpdate[key]);
-              }
               sets.push(`${key} = ?`);
-              values.push(safeUpdate[key]);
+              values.push(sanitizeSqliteValue(safeUpdate[key]));
             }
 
             const whereClauses: string[] = [];
@@ -90,10 +84,10 @@ export const Route = createFileRoute("/api/db")({
               for (const f of filters) {
                 if (f.type === "eq") {
                   whereClauses.push(`${f.col} = ?`);
-                  values.push(f.val);
+                  values.push(sanitizeSqliteValue(f.val));
                 } else if (f.type === "neq") {
                   whereClauses.push(`${f.col} != ?`);
-                  values.push(f.val);
+                  values.push(sanitizeSqliteValue(f.val));
                 }
               }
             }
@@ -115,10 +109,10 @@ export const Route = createFileRoute("/api/db")({
               for (const f of filters) {
                 if (f.type === "eq") {
                   whereClauses.push(`${f.col} = ?`);
-                  values.push(f.val);
+                  values.push(sanitizeSqliteValue(f.val));
                 } else if (f.type === "neq") {
                   whereClauses.push(`${f.col} != ?`);
-                  values.push(f.val);
+                  values.push(sanitizeSqliteValue(f.val));
                 }
               }
             }
@@ -139,17 +133,17 @@ export const Route = createFileRoute("/api/db")({
             for (const f of filters) {
               if (f.type === "eq") {
                 whereClauses.push(`${f.col} = ?`);
-                values.push(f.val);
+                values.push(sanitizeSqliteValue(f.val));
               } else if (f.type === "neq") {
                 whereClauses.push(`${f.col} != ?`);
-                values.push(f.val);
+                values.push(sanitizeSqliteValue(f.val));
               } else if (f.type === "in") {
                 if (f.vals.length === 0) {
                   whereClauses.push("1 = 0");
                 } else {
                   const q = f.vals.map(() => "?").join(", ");
                   whereClauses.push(`${f.col} IN (${q})`);
-                  values.push(...f.vals);
+                  values.push(...f.vals.map(sanitizeSqliteValue));
                 }
               }
             }

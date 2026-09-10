@@ -51,20 +51,18 @@ export function AuthenticatedLayout() {
   const pendingReviewCount = pendingReviewData ?? 0;
 
   const NAV = [
-    { to: "/", label: t("nav.home", "Home Portal"), icon: Home },
-    { to: "/dashboard", label: t("nav.dashboard", "Dashboard"), icon: LayoutDashboard },
-    { to: "/upload", label: t("nav.upload", "Upload Source"), icon: Upload },
-    { to: "/outputs", label: t("nav.outputs", "Generated Outputs"), icon: FileText },
+    { to: "/", label: "Home", icon: Home },
+    { to: "/upload", label: "Upload & Process", icon: Upload },
+    { to: "/outputs", label: "Generated Outputs", icon: FileText },
     {
       to: "/review",
-      label: t("nav.review", "Human Review"),
+      label: "Review & Approve",
       icon: ListChecks,
       badge: pendingReviewCount > 0 ? pendingReviewCount : undefined,
     },
-    { to: "/distribution", label: t("nav.distribution", "Distribution"), icon: Send },
-    { to: "/audit", label: t("nav.audit", "Audit & Metrics"), icon: Activity },
-    { to: "/architecture", label: t("nav.architecture", "Architecture"), icon: Network },
-    { to: "/settings", label: t("nav.settings", "Settings"), icon: Settings },
+    { to: "/distribution", label: "Distribute", icon: Send },
+    { to: "/audit", label: "Analytics", icon: Activity },
+    { to: "/settings", label: "Settings", icon: Settings },
   ] as const;
 
   useEffect(() => {
@@ -102,18 +100,20 @@ export function AuthenticatedLayout() {
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border/80 bg-sidebar/95 backdrop-blur-sm md:flex">
         {/* Brand Header */}
         <div className="border-b border-border/80 px-5 py-4">
-          <Link to="/dashboard" className="group block">
-            <div className="flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded bg-ember/15 text-ember ring-1 ring-ember/30">
-                <ShieldCheck className="size-3.5" />
+          <Link to="/upload" className="group block">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                <ShieldCheck className="size-4" />
               </span>
-              <span className="font-mono text-sm font-bold tracking-[0.2em] text-foreground group-hover:text-ember transition-colors">
-                INTELLI<span className="text-ember">-</span>FORGE
-              </span>
+              <div>
+                <span className="text-sm font-bold tracking-tight text-foreground group-hover:text-blue-500 transition-colors block leading-tight">
+                  ContentForge
+                </span>
+                <p className="text-[10px] tracking-wide text-muted-foreground font-sans leading-tight mt-0.5">
+                  Verified Content. Real Impact.
+                </p>
+              </div>
             </div>
-            <p className="mt-1 text-[10px] tracking-wide text-muted-foreground font-sans">
-              {t("brand.tagline", "Verified content transformation")}
-            </p>
           </Link>
         </div>
 
@@ -127,21 +127,23 @@ export function AuthenticatedLayout() {
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition-all relative group",
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all relative group",
                   active
-                    ? "bg-surface-raised text-foreground font-semibold border-l-2 border-ember shadow-xs"
+                    ? "bg-blue-600/10 text-blue-600 dark:text-blue-400 font-semibold border border-blue-500/20 shadow-xs"
                     : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground",
                 )}
               >
                 <item.icon
                   className={cn(
                     "size-4 shrink-0 transition-transform group-hover:scale-105",
-                    active ? "text-ember" : "text-muted-foreground group-hover:text-foreground",
+                    active
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-muted-foreground group-hover:text-foreground",
                   )}
                 />
                 <span className="truncate">{item.label}</span>
                 {"badge" in item && item.badge != null && (
-                  <span className="ml-auto rounded-full bg-ember/20 px-2 py-0.5 font-mono text-[10px] text-ember font-bold">
+                  <span className="ml-auto rounded-full bg-blue-500/20 px-2 py-0.5 font-mono text-[10px] text-blue-600 dark:text-blue-400 font-bold">
                     {item.badge}
                   </span>
                 )}
@@ -149,6 +151,30 @@ export function AuthenticatedLayout() {
             );
           })}
         </nav>
+
+        {/* Pipeline Status Indicator */}
+        <div className="border-t border-border/80 p-3 bg-surface/20">
+          <div className="rounded-lg border border-border/60 bg-surface/50 p-2.5 text-xs space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-[11px] text-foreground">Pipeline Status</span>
+              <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <div className="space-y-1 text-[10px] font-mono text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                <span>Intake Ready</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                <span>Processing Ready</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                <span>Verification Ready</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* User Identity & Logout Card */}
         <div className="border-t border-border/80 p-3 bg-surface/30">

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureValidUuid } from "./auth-service";
 import { createSupabaseServerClient } from "@/integrations/supabase/client.server";
 import { parseJwt, createOperatorJwt } from "./jwt-utils";
@@ -7,7 +8,7 @@ export async function clientFromRequest(
   request: Request,
 ): Promise<{ supabase: any; userId: string } | null> {
   const header = request.headers.get("authorization");
-  let token = header?.replace("Bearer ", "").trim() || "";
+  const token = header?.replace("Bearer ", "").trim() || "";
 
   if (!token) {
     const cookieHeader = request.headers.get("cookie");
